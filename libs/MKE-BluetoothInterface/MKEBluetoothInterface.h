@@ -1,24 +1,11 @@
-/*
-
-This is a library for the BH1750FVI Digital Light Sensor
-breakout board.
-
-The board uses I2C for communication. 2 pins are required to
-interface to the device.
-
-Datasheet:
-http://rohmfs.rohm.com/en/products/databook/datasheet/ic/sensor/light/bh1750fvi-e.pdf
-
-Written by Christopher Laws, March, 2013.
-
-*/
-
 #ifndef MKEBluetoothInterface_h
 #define MKEBluetoothInterface_h
 
 #include "Arduino.h"
 #include "MKEM24M02.h"
 
+
+//#define BLUETOOTH_DEBUG 0x22
 
 #define BUFFER_START_BYTE 0x2A
 #define BUFFER_END_BYTE 0x26
@@ -45,6 +32,18 @@ Written by Christopher Laws, March, 2013.
 
 #define READ_ALL_SENSORS 0x70
 
+
+
+#define DEVICE_CONF_CALLBACK 0x00
+#define FILE_CALLBACK 0x20
+#define DEVICE_INFO_CALLBACK 0x30
+#define CURRENT_DATA_CALLBACK 0x40
+#define CALIBRATION_CALLBACK 0x50
+#define SAMPLER_CALLBACK 0x75
+#define MOTOR_TEST_CALLBACK 0x60
+
+typedef void(*commandCallback)(byte*,uint16_t);
+
 class BluetoothInterface {
 
   public:
@@ -53,15 +52,19 @@ class BluetoothInterface {
     uint8_t sendAllConfig();
     uint8_t sendFileNames();
     uint8_t sendDateTime();
+    void setCallback(uint8_t callbacktype,commandCallback cc);
+    void unsetCallback(uint8_t callbacktype);
     void receive();
 
 
   private:
-    EEPROM eeprom;
+    mEEPROM eeprom;
     uint8_t len;
-    String msg;
+    uint8_t msg[512];
+    uint16_t cursor=0;
     bool deviceConnected;
     bool buffering;
+    commandCallback fileCallback,devConfCallback,devInfoCallback,samplerCallback,calibrationCallback,currentDataCallback,motorTestCallback;
 
 
 };

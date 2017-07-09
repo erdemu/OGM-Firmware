@@ -17,7 +17,7 @@ Written by Christopher Laws, March, 2013.
 #define MKEModbusMaster_h
 
 #include "Arduino.h"
-
+//#define _MODBUS_DEBUG_ 88
 
 /*typedef enum FUNCTION_TYPES{
 
@@ -36,10 +36,11 @@ typedef enum SERIAL_MODES{
 class ModbusMaster {
   public:
     ModbusMaster();
-    void config(HardwareSerial* port,uint16_t baudRate);
-    uint16_t* Function3(uint8_t slaveID,uint16_t registerAddress,uint16_t registerCount);
-    uint16_t* Function4(uint8_t slaveID,uint16_t registerAddress,uint16_t registerCount);
-    uint8_t Function6(uint8_t slaveID,uint16_t registerAddress,uint16_t registerValue);
+    void config(uint16_t baudRate);
+    uint16_t* readHoldingRegisters(uint8_t slaveID,uint16_t registerAddress,uint16_t registerCount,uint16_t timeOut);
+    uint16_t* readInputRegisters(uint8_t slaveID,uint16_t registerAddress,uint16_t registerCount,uint16_t timeOut);
+    uint8_t   writeSingleRegister(uint8_t slaveID,uint16_t registerAddress,uint16_t registerValue,uint16_t timeOut);
+    uint8_t   clearBus(void);
 
 
  private:

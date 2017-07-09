@@ -1,4 +1,4 @@
-#include "smpl.h"
+#include "MKESamplerLoader.h"
 
 sampleLoader::sampleLoader(){
 

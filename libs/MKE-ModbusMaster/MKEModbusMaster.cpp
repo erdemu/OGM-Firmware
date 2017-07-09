@@ -17,13 +17,14 @@ ModbusMaster::ModbusMaster() {
 
 }
 
-void ModbusMaster::config(HardwareSerial* port,uint16_t baudRate) {
-  this->_port=port;
-  (*_port).begin(baudRate,SERIAL_8N1);
+void ModbusMaster::config(uint16_t baudRate) {
+  //this->_port=port;
+  Serial1.begin(baudRate,SERIAL_8N1);
 
 }
 
-uint8_t ModbusMaster::Function6(uint8_t slaveID,uint16_t registerAddress,uint16_t registerValue){
+uint8_t ModbusMaster::writeSingleRegister(uint8_t slaveID,uint16_t registerAddress,uint16_t registerValue,uint16_t timeOut){
+  uint8_t _cnt = 0;
   free(msg);
   msg = (uint8_t*)malloc(sizeof(uint8_t)*8);
   msg[0]=slaveID;
@@ -36,45 +37,64 @@ uint8_t ModbusMaster::Function6(uint8_t slaveID,uint16_t registerAddress,uint16_
   msg[6]=crc>>8;
   msg[7]=(crc&0xff);
   _timer=millis();
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("Send Data :");
+  #endif
   for(int i = 0 ; i < 8 ; i++){
-    (*_port).write(msg[i]);
+    Serial1.write(msg[i]);
+    #ifdef _MODBUS_DEBUG_
+    Serial.print(msg[i],DEC);
+    Serial.print(" ");
+    #endif
     msg[i]=0;
   }
-  //(*_port).flush();
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("");
+  #endif
   len=8;
   uint16_t rcv_crc=0x0000;
-  while(millis()<_timer+3000){
-    if((*_port).available()>0){
-      char c = (*_port).available();
-      if((uint8_t)c!=len)
-        return 0;
-      for(int j=0;j<c;j++){
-        msg[j]=(uint8_t)(*_port).read();
-        delay(1);
-      }
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("Received Data : ");
+  #endif
+  while(millis()<_timer+timeOut){
+    if(Serial1.available()>0){
+      char c = Serial1.available();
+      msg[_cnt]=(uint8_t)Serial1.read();
+      #ifdef _MODBUS_DEBUG_
+      Serial.print(msg[_cnt],DEC);
+      Serial.print(" ");
+      #endif
+      _cnt++;
+      if(_cnt==len)break;
     }
-    break;
   }
+  #ifdef _MODBUS_DEBUG_
+  Serial.println(" ");
+  #endif
   crc = calculateCRC(slaveID,(msg+1),5);
   rcv_crc=(msg[len-2]<<8)|msg[len-1];
   if(crc==rcv_crc){
     return 1;
   }
   else{
-    0;
+    return 0;
   }
+  //Serial1.flush();
 }
-uint16_t* ModbusMaster::Function4(uint8_t slaveID,uint16_t registerAddress,uint16_t registerCount){
+uint16_t* ModbusMaster::readInputRegisters(uint8_t slaveID,uint16_t registerAddress,uint16_t registerCount,uint16_t timeOut){
 
   free(msg);
   free(output);
+  uint8_t _cnt=0;
   output = (uint16_t*)malloc(sizeof(uint16_t)*registerCount);
   for(int i = 0 ; i < registerCount;i++){
     output[i]=0xffff;
   }
   msg = (uint8_t*)malloc(sizeof(uint8_t)*8);
   if(!msg){
-    //(*_port).println("An error occured..");
+    #ifdef _MODBUS_DEBUG_
+    Serial.println("An error occured..");
+    #endif
     return output;
   }
   msg[0]=slaveID;
@@ -87,28 +107,44 @@ uint16_t* ModbusMaster::Function4(uint8_t slaveID,uint16_t registerAddress,uint1
   msg[6]=crc>>8;
   msg[7]=(crc&0xff);
   len = 5+registerCount*2;
-  //uint8_t ind=0;
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("Send Data :");
+  #endif
   _timer=millis();
   for(int i = 0 ; i < 8 ; i++){
-    (*_port).write(msg[i]);
+    Serial1.write(msg[i]);
+    #ifdef _MODBUS_DEBUG_
+    Serial.print(msg[i],DEC);
+    Serial.print(" ");
+    #endif
     msg[i]=0;
   }
-
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("");
+  #endif
+  //Serial1.flush();
   free(msg);
   msg=(uint8_t*)malloc(sizeof(uint8_t)*len);
-  while(millis()<_timer+3000){
-    if((*_port).available()>0){
-      char c = (*_port).available();
-      if((uint8_t)c!=len)
-        return output;
-      for(int j=0;j<c;j++){
-        msg[j]=(uint8_t)(*_port).read();
-      }
-      break;
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("Received Data :");
+  #endif
+  while(millis()<_timer+timeOut){
+    if(Serial1.available()>0){
+      char c = Serial1.available();
+      msg[_cnt]=(uint8_t)Serial1.read();
+      #ifdef _MODBUS_DEBUG_
+      Serial.print(msg[_cnt],DEC);
+      Serial.print(" ");
+      #endif
+      _cnt++;
+      if(_cnt==len)break;
     }
   }
-  (*_port).flush();
-  //PDU RECEIVED IF ANY
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("");
+  #endif
+  //Serial1.flush();
+
   crc = calculateCRC(slaveID,(msg+1),len-3);
   if(crc==((msg[len-2]<<8)|msg[len-1])){
     //CRC IS CORRECT
@@ -119,21 +155,26 @@ uint16_t* ModbusMaster::Function4(uint8_t slaveID,uint16_t registerAddress,uint1
       }
       return output;
     }
-
+  }
+  else{
+    return 0;
   }
 }
 
-uint16_t* ModbusMaster::Function3(uint8_t slaveID,uint16_t registerAddress,uint16_t registerCount){
+uint16_t* ModbusMaster::readHoldingRegisters(uint8_t slaveID,uint16_t registerAddress,uint16_t registerCount,uint16_t timeOut){
 
   free(msg);
   free(output);
+  uint8_t _cnt=0;
   output = (uint16_t*)malloc(sizeof(uint16_t)*registerCount);
   for(int i = 0 ; i < registerCount;i++){
     output[i]=0xffff;
   }
   msg = (uint8_t*)malloc(sizeof(uint8_t)*8);
   if(!msg){
+    #ifdef _MODBUS_DEBUG_
     Serial.println("An error occured..");
+    #endif
     return output;
   }
   msg[0]=slaveID;
@@ -146,37 +187,46 @@ uint16_t* ModbusMaster::Function3(uint8_t slaveID,uint16_t registerAddress,uint1
   msg[6]=crc>>8;
   msg[7]=(crc&0xff);
   len = 5+registerCount*2;
-  //uint8_t ind=0;
+
   _timer=millis();
-  Serial.print("Sent message : ");
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("Send data :");
+  #endif
   for(int i = 0 ; i < 8 ; i++){
-    (*_port).write(msg[i]);
-    Serial.print(msg[i],HEX);
+    Serial1.write(msg[i]);
+    #ifdef _MODBUS_DEBUG_
+    Serial.print(msg[i],DEC);
     Serial.print(" ");
+    #endif
     msg[i]=0;
   }
+  #ifdef _MODBUS_DEBUG_
   Serial.println("");
-
+  #endif
+  //Serial1.flush();
   free(msg);
   msg=(uint8_t*)malloc(sizeof(uint8_t)*len);
-  while(millis()<_timer+3000){
-    if((*_port).available()>0){
-      //char c = (*_port).available();
-      //if((uint8_t)c!=len)
-        //return output;
-      Serial.print("Received message : ");
+  #ifdef _MODBUS_DEBUG_
+  Serial.println("Received Data :");
+  #endif
+  while(millis()<_timer+timeOut){
+    if(Serial1.available()>0){
+      char c = Serial1.available();
 
-      for(int j=0;j<len;j++){
-        msg[j]=(uint8_t)(*_port).read();
-        Serial.print(msg[j],HEX);
-        Serial.print(" ");
-      }
-      Serial.println("");
-      break;
+      msg[_cnt]=(uint8_t)Serial1.read();
+      #ifdef _MODBUS_DEBUG_
+      Serial.print(msg[_cnt],DEC);
+      Serial.print(" ");
+      #endif
+      _cnt++;
+      if(_cnt==len)break;
     }
   }
-  //(*_port).flush();
-  //PDU RECEIVED IF ANY
+  #ifdef _MODBUS_DEBUG_
+  Serial.println(" ");
+  #endif
+  //Serial1.flush();
+
   crc = calculateCRC(slaveID,(msg+1),len-3);
   if(crc==((msg[len-2]<<8)|msg[len-1])){
     //CRC IS CORRECT
@@ -187,11 +237,25 @@ uint16_t* ModbusMaster::Function3(uint8_t slaveID,uint16_t registerAddress,uint1
       }
       return output;
     }
-
+  }
+  else{
+    return 0;
   }
 }
 
+uint8_t ModbusMaster::clearBus(void){
+  while(Serial1.available()){
+    #ifdef _MODBUS_DEBUG_
+      char c = Serial1.read();
+      Serial.print(c);
+      Serial.println(" ");
+    #endif
+    #ifndef _MODBUS_DEBUG_
+      Serial1.read();
+    #endif
+  }
 
+}
 uint16_t ModbusMaster::calculateCRC(uint8_t address, uint8_t* pduFrame, uint8_t pduLen) {
 
 	byte CRCHi = 0xFF, CRCLo = 0x0FF, Index;
